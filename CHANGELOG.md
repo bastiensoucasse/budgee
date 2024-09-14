@@ -4,6 +4,8 @@
 
 **Added**
 
+- Introduced a command-line interface (CLI) defined as default entry point
+  with version display and context loading options.
 - Introduced a manager for people and transactions
   with methods for creating, updating, and deleting people and transactions,
   along with saving/loading the manager from/to a context JSON file.

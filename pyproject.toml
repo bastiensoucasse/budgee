@@ -14,7 +14,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["pydantic", "rich", "unidecode"]
+dependencies = ["pydantic", "rich", "rich-click", "unidecode"]
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest"]
@@ -22,6 +22,9 @@ dev = ["ruff", "mypy", "pytest"]
 [project.urls]
 Source = "https://github.com/bastiensoucasse/budgee"
 Issues = "https://github.com/bastiensoucasse/budgee/issues"
+
+[project.scripts]
+budgee = "budgee.cli:cli"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
