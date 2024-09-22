@@ -4,8 +4,8 @@ from json import dump, load
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+from rilog import logger
 
-from budgee.logger import logger
 from budgee.models import Expense, Income, Person, Transaction
 from budgee.utils import slugify
 
