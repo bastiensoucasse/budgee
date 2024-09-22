@@ -100,7 +100,7 @@ class Manager(BaseModel):
         person = self._find_person(name)
         person_id = person.id()
         for transaction_id in person.transactions:
-            self.transactions[transaction_id].persons.remove(person_id)
+            self._find_transaction(transaction_id).persons.remove(person_id)
         del self.people[person_id]
 
     def delete_transaction(self, name: str) -> None:
@@ -112,7 +112,7 @@ class Manager(BaseModel):
         transaction = self._find_transaction(name)
         transaction_id = transaction.id()
         for person_id in transaction.persons:
-            self.people[person_id].transactions.remove(transaction_id)
+            self._find_person(person_id).transactions.remove(transaction_id)
         del self.transactions[transaction_id]
 
     def _update_person_name(self, person: Person, new_name: str) -> None:
@@ -121,7 +121,7 @@ class Manager(BaseModel):
         person.name = new_name
         new_person_id = person.id()
         for transaction_id in person.transactions:
-            transaction = self.transactions[transaction_id]
+            transaction = self._find_transaction(transaction_id)
             transaction.persons.remove(person_id)
             transaction.persons.append(new_person_id)
         del self.people[person_id]
@@ -133,7 +133,7 @@ class Manager(BaseModel):
         transaction.name = new_name
         new_transaction_id = transaction.id()
         for person_id in transaction.persons:
-            person = self.people[person_id]
+            person = self._find_person(person_id)
             person.transactions.remove(transaction_id)
             person.transactions.append(new_transaction_id)
         del self.transactions[transaction_id]
