@@ -174,6 +174,31 @@ class Manager(BaseModel):
         if new_category:
             transaction.category = Transaction.Category(new_category)
 
+    def _summarize_people(self) -> None:
+        if not self.people:
+            return
+
+        logger.log("People:")
+        logger.set_prefix("    - ")
+        for person in self.people.values():
+            logger.log(str(person))
+        logger.remove_prefix()
+
+    def _summarize_transactions(self) -> None:
+        if not self.transactions:
+            return
+
+        logger.log("Transactions:")
+        logger.set_prefix("    - ")
+        for transaction in sorted(self.transactions.values(), key=lambda t: t.value):
+            logger.log(str(transaction))
+        logger.remove_prefix()
+
+    def summarize(self) -> None:
+        """Summarizes the manager by displaying a list of all people and transactions."""
+        self._summarize_people()
+        self._summarize_transactions()
+
     def save(self, context_file_path: Path | str) -> None:
         """Saves the current manager context to a JSON file.
 

@@ -26,6 +26,14 @@ class Person:
         """
         return slugify(self.name)
 
+    def __str__(self) -> str:
+        """Creates a text representation of the person.
+
+        Returns:
+            text: Text representation of the person.
+        """
+        return f"{self.name}"
+
 
 @dataclass
 class Transaction:
@@ -78,6 +86,15 @@ class Transaction:
             msg = f'{self.__class__.__name__} "{self}" unallocated.'
             raise ValueError(msg)
         return self.value / len(self.persons)
+
+    def __str__(self) -> str:
+        """Creates a text representation of the transaction.
+
+        Returns:
+            text: Text representation of the transaction.
+        """
+        text = f"{self.name}: ${abs(self.value)} {"income" if self.value > 0 else "expense"}"
+        return f"{text} ({self.category})" if self.category else text
 
 
 @dataclass

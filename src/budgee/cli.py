@@ -21,4 +21,5 @@ def cli(context: Path | None = None) -> None:
     Args:
         context: Path to the context file to load.
     """
-    _manager = Manager() if context is None else Manager.load(context)
+    manager = Manager() if context is None else Manager.load(context)
+    manager.summarize()
