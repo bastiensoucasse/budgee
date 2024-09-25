@@ -1,4 +1,4 @@
-"""Utility functions."""
+"""Utilities module."""
 
 import re
 

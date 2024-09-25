@@ -1,1 +1,1 @@
-"""Tests for the person/transaction management."""
+"""Tests for the budget manager module."""

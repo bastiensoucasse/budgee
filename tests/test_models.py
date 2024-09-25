@@ -1,1 +1,1 @@
-"""Tests for the base models."""
+"""Tests for the data models module."""

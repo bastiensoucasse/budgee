@@ -1,53 +1,29 @@
-"""Person/transaction management."""
+"""Budget manager module."""
 
-from json import dump, load
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from pydantic import BaseModel, Field
 from rilog import logger
 
-from budgee.models import Expense, Income, Person, Transaction
-from budgee.utils import slugify
+from budgee.models import ExpenseModel, IncomeModel, ManagerModel, PersonModel
+from budgee.structures import Expense, Income, Person
 
 
-class Manager(BaseModel):
-    """Person/transaction manager."""
+@dataclass
+class Manager:
+    """Budget manager."""
 
-    people: dict[str, Person] = Field(default_factory=dict)
-    """People to manage."""
+    persons: dict[str, Person] = field(default_factory=dict, kw_only=True)
+    """Persons to manage."""
 
-    transactions: dict[str, Transaction] = Field(default_factory=dict)
-    """Transactions to manage."""
+    incomes: dict[str, Income] = field(default_factory=dict, kw_only=True)
+    """Incomes to manage."""
 
-    def _get_person(self, name: str) -> Person | None:
-        return self.people.get(slugify(name))
-
-    def _get_transaction(self, name: str) -> Transaction | None:
-        return self.transactions.get(slugify(name))
-
-    def _find_person(self, name: str) -> Person:
-        person = self._get_person(name)
-        if not person:
-            msg = f'Person "{name}" does not exist.'
-            raise ValueError(msg)
-        return person
-
-    def _find_transaction(self, name: str) -> Transaction:
-        transaction = self._get_transaction(name)
-        if not transaction:
-            msg = f'Transaction "{name}" does not exist.'
-            raise ValueError(msg)
-        return transaction
-
-    def _check_person_doesnt_exist(self, name: str) -> None:
-        if person := self._get_person(name):
-            msg = f'Person "{person.name}" already exists.'
-            raise ValueError(msg)
-
-    def _check_transaction_doesnt_exist(self, name: str) -> None:
-        if transaction := self._get_transaction(name):
-            msg = f'Transaction "{transaction.name}" already exists.'
-            raise ValueError(msg)
+    expenses: dict[str, Expense] = field(default_factory=dict, kw_only=True)
+    """Expenses to manage."""
 
     def create_person(self, name: str) -> None:
         """Creates a new person to manage.
@@ -55,41 +31,25 @@ class Manager(BaseModel):
         Args:
             name: Name of the person.
         """
-        self._check_person_doesnt_exist(name)
-        person = Person(name)
-        self.people[person.id()] = person
+        self.persons[name] = Person(name)
 
-    def _create_transaction(
-        self,
-        name: str,
-        value: float,
-        transaction_type: type[Transaction],
-        *,
-        category: str | None = None,
-    ) -> None:
-        self._check_transaction_doesnt_exist(name)
-        transaction = transaction_type(name, value, Transaction.Category(category) if category else None)
-        self.transactions[transaction.id()] = transaction
-
-    def create_income(self, name: str, value: float, *, category: str | None = None) -> None:
+    def create_income(self, name: str, amount: float) -> None:
         """Creates a new income to manage.
 
         Args:
             name: Name of the income.
-            value: Value of the income.
-            category: Category of the income.
+            amount: Amount of the income.
         """
-        self._create_transaction(name, value, Income, category=category)
+        self.incomes[name] = Income(name, amount)
 
-    def create_expense(self, name: str, value: float, *, category: str | None = None) -> None:
+    def create_expense(self, name: str, amount: float) -> None:
         """Creates a new expense to manage.
 
         Args:
             name: Name of the expense.
-            value: Value of the expense.
-            category: Category of the expense.
+            amount: Amount of the expense.
         """
-        self._create_transaction(name, value, Expense, category=category)
+        self.expenses[name] = Expense(name, amount)
 
     def delete_person(self, name: str) -> None:
         """Deletes a person from the manager.
@@ -97,134 +57,180 @@ class Manager(BaseModel):
         Args:
             name: Name of the person to delete.
         """
-        person = self._find_person(name)
-        person_id = person.id()
-        for transaction_id in person.transactions:
-            self._find_transaction(transaction_id).persons.remove(person_id)
-        del self.people[person_id]
+        person = self.persons[name]
+        for transaction in person.incomes + person.expenses:
+            transaction.persons.remove(person)
+        del self.persons[name]
 
-    def delete_transaction(self, name: str) -> None:
-        """Deletes a transaction from the manager.
-
-        Args:
-            name: Name of the transaction to delete.
-        """
-        transaction = self._find_transaction(name)
-        transaction_id = transaction.id()
-        for person_id in transaction.persons:
-            self._find_person(person_id).transactions.remove(transaction_id)
-        del self.transactions[transaction_id]
-
-    def _update_person_name(self, person: Person, new_name: str) -> None:
-        self._check_person_doesnt_exist(new_name)
-        person_id = person.id()
-        person.name = new_name
-        new_person_id = person.id()
-        for transaction_id in person.transactions:
-            transaction = self._find_transaction(transaction_id)
-            transaction.persons.remove(person_id)
-            transaction.persons.append(new_person_id)
-        del self.people[person_id]
-        self.people[new_person_id] = person
-
-    def _update_transaction_name(self, transaction: Transaction, new_name: str) -> None:
-        self._check_transaction_doesnt_exist(new_name)
-        transaction_id = transaction.id()
-        transaction.name = new_name
-        new_transaction_id = transaction.id()
-        for person_id in transaction.persons:
-            person = self._find_person(person_id)
-            person.transactions.remove(transaction_id)
-            person.transactions.append(new_transaction_id)
-        del self.transactions[transaction_id]
-        self.transactions[new_transaction_id] = transaction
-
-    def update_person(self, name: str, *, new_name: str | None = None) -> None:
-        """Updates a person with new properties.
+    def delete_income(self, name: str) -> None:
+        """Deletes an income from the manager.
 
         Args:
-            name: Current name of the person to update.
-            new_name: New name of the person.
+            name: Name of the income to delete.
         """
-        person = self._find_person(name)
-        if new_name:
-            self._update_person_name(person, new_name)
+        income = self.incomes[name]
+        for person in income.persons:
+            person.incomes.remove(income)
+        del self.incomes[name]
 
-    def update_transaction(
-        self,
-        name: str,
-        *,
-        new_name: str | None = None,
-        new_value: float | None = None,
-        new_category: str | None = None,
-    ) -> None:
-        """Updates a transaction with new properties.
+    def delete_expense(self, name: str) -> None:
+        """Deletes an expense from the manager.
 
         Args:
-            name: Current name of the transaction to update.
-            new_name: New name of the transaction.
-            new_value: New value of the transaction.
-            new_category: New category of the transaction.
+            name: Name of the expense to delete.
         """
-        transaction = self._find_transaction(name)
-        if new_name:
-            self._update_transaction_name(transaction, new_name)
-        if new_value:
-            transaction.value = new_value
-        if new_category:
-            transaction.category = Transaction.Category(new_category)
+        expense = self.expenses[name]
+        for person in expense.persons:
+            person.expenses.remove(expense)
+        del self.expenses[name]
 
-    def _summarize_people(self) -> None:
-        if not self.people:
+    def _summarize_persons(self) -> None:
+        if not self.persons:
             return
 
-        logger.log("People:")
-        logger.set_prefix("    - ")
-        for person in self.people.values():
-            logger.log(str(person))
+        logger.log("Persons:")
+        logger.set_prefix("    • ")
+        for person in self.persons.values():
+            logger.log(person.name)
         logger.remove_prefix()
 
-    def _summarize_transactions(self) -> None:
-        if not self.transactions:
+    def _summarize_incomes(self) -> None:
+        if not self.incomes:
             return
 
-        logger.log("Transactions:")
+        logger.log("Incomes:")
+        logger.set_prefix("    + ")
+        for income in self.incomes.values():
+            logger.log(f"{income.name}: {income.amount}")
+        logger.remove_prefix()
+
+    def _summarize_expenses(self) -> None:
+        if not self.expenses:
+            return
+
+        logger.log("Expenses:")
         logger.set_prefix("    - ")
-        for transaction in sorted(self.transactions.values(), key=lambda t: t.value):
-            logger.log(str(transaction))
+        for expense in self.expenses.values():
+            logger.log(f"{expense.name}: {expense.amount}")
         logger.remove_prefix()
 
     def summarize(self) -> None:
-        """Summarizes the manager by displaying a list of all people and transactions."""
-        self._summarize_people()
-        self._summarize_transactions()
+        """Summarizes the manager by displaying all managed persons, incomes, and expenses."""
+        logger.log("[b blue]------- Summary -------")
+        self._summarize_persons()
+        self._summarize_incomes()
+        self._summarize_expenses()
 
-    def save(self, context_file_path: Path | str) -> None:
-        """Saves the current manager context to a JSON file.
+    def display_person(self, name: str) -> None:
+        """Displays the transactions of a person.
 
         Args:
-            context_file_path: Path to the context file to create.
+            name: Name of the person to summarize.
         """
-        if not isinstance(context_file_path, Path):
-            context_file_path = Path(context_file_path)
-        with context_file_path.open(mode="w", encoding="utf-8") as context_file:
-            dump(self.model_dump(), context_file, indent=4)
-        logger.log(f'Manager context saved successfully to "{context_file_path}".')
+        person = self.persons[name]
+        logger.log(f"[b blue]------- {person.name} -------")
+        logger.log("Incomes:")
+        logger.set_prefix("    + ")
+        for income in person.incomes:
+            logger.log(f"{income.name}: {income.share()}")
+        logger.remove_prefix()
+        logger.log("Expenses:")
+        logger.set_prefix("    - ")
+        for expense in person.expenses:
+            logger.log(f"{expense.name}: {expense.share()}")
+        logger.remove_prefix()
+        logger.log(f"Profits: {person.profits()}")
+        logger.log(f"Total Incomes: {person.total_incomes()}")
+        logger.log(f"Total Expenses: {person.total_expenses()}")
+        logger.log(f"Total Shared Incomes: {person.total_shared_incomes()}")
+        logger.log(f"Total Shared Expenses: {person.total_shared_expenses()}")
 
-    @staticmethod
-    def load(context_file_path: Path | str) -> "Manager":
-        """Loads a manager context from a JSON file.
+    def _to_model(self) -> ManagerModel:
+        person_models = [
+            PersonModel(
+                name=person.name,
+                incomes=[income.name for income in person.incomes],
+                expenses=[expense.name for expense in person.expenses],
+            )
+            for person in self.persons.values()
+        ]
+        income_models = [
+            IncomeModel(
+                name=income.name,
+                amount=income.amount,
+                persons=[person.name for person in income.persons],
+            )
+            for income in self.incomes.values()
+        ]
+        expense_models = [
+            ExpenseModel(
+                name=expense.name,
+                amount=expense.amount,
+                persons=[person.name for person in expense.persons],
+            )
+            for expense in self.expenses.values()
+        ]
+        return ManagerModel(
+            persons=person_models,
+            incomes=income_models,
+            expenses=expense_models,
+        )
+
+    def save(self, file_path: Path | str) -> None:
+        """Exports the manager to a JSON file.
 
         Args:
-            context_file_path: Path to the context file to load.
+            file_path: Path to the JSON file.
+        """
+        model = self._to_model()
+        if not isinstance(file_path, Path):
+            file_path = Path(file_path)
+        with file_path.open(mode="w", encoding="utf-8") as file:
+            json.dump(model.model_dump(), file, indent=4)
+
+    @classmethod
+    def _from_model(cls, model: ManagerModel) -> Manager:
+        manager = cls()
+
+        for person_data in model.persons:
+            person = Person(person_data.name)
+            manager.persons[person.name] = person
+
+        for income_data in model.incomes:
+            income = Income(income_data.name, income_data.amount)
+            manager.incomes[income.name] = income
+
+        for expense_data in model.expenses:
+            expense = Expense(expense_data.name, expense_data.amount)
+            manager.expenses[expense.name] = expense
+
+        for person_data in model.persons:
+            person = manager.persons[person_data.name]
+            person.incomes = [manager.incomes[income_name] for income_name in person_data.incomes]
+            person.expenses = [manager.expenses[expense_name] for expense_name in person_data.expenses]
+
+        for income_data in model.incomes:
+            income = manager.incomes[income_data.name]
+            income.persons = [manager.persons[person_name] for person_name in income_data.persons]
+
+        for expense_data in model.expenses:
+            expense = manager.expenses[expense_data.name]
+            expense.persons = [manager.persons[person_name] for person_name in expense_data.persons]
+
+        return manager
+
+    @classmethod
+    def load(cls, file_path: Path | str) -> Manager:
+        """Imports a manager from a JSON file.
+
+        Args:
+            file_path: Path to the JSON file.
 
         Returns:
-            manager: Manager loaded from the context file.
+            manager: Imported manager.
         """
-        if not isinstance(context_file_path, Path):
-            context_file_path = Path(context_file_path)
-        with context_file_path.open(encoding="utf8") as context_file:
-            context = load(context_file)
-        manager = Manager(**context)
-        logger.log(f'Manager context loaded successfully from "{context_file_path}".')
-        return manager
+        if not isinstance(file_path, Path):
+            file_path = Path(file_path)
+        with file_path.open(encoding="utf-8") as file:
+            model = ManagerModel(**json.load(file))
+        return cls._from_model(model)

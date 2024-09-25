@@ -1,4 +1,4 @@
-"""Command-line interface."""
+"""Command-line interface module."""
 
 from pathlib import Path
 
@@ -23,3 +23,6 @@ def cli(context: Path | None = None) -> None:
     """
     manager = Manager() if context is None else Manager.load(context)
     manager.summarize()
+
+    for person in manager.persons:
+        manager.display_person(person)
